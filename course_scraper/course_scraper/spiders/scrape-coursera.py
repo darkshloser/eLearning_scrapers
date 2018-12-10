@@ -71,17 +71,20 @@ class CourseraSpider(scrapy.Spider):
                                  'logo': str(logo),
                                  'banner': str(banner)})
         courses = response.xpath('//div[@class="rc-PartnerApp"]/div[1]/div[2]/div[1]/div/div/a/@href').extract()
-        for course in courses:
+        course_logo = response.xpath('//div[@class="rc-PartnerApp"]/div[1]/div[2]/div[1]/div[1]/div/a/img/@src').extract()
+        for idx, course in enumerate(courses):
             course_url = response.urljoin(course)
             request_course = scrapy.Request(course_url, callback=self.parseCourseDetails)
             request_course.meta['course_writer'] = course_writer
             request_course.meta['specialization_writer'] = specialization_writer
+            request_course.meta['course_logo'] = course_logo[idx]
             yield request_course
 
 
     def parseCourseDetails(self, response):
         course_writer = response.meta['course_writer']
         specialization_writer = response.meta['specialization_writer']
+        course_logo = response.meta['course_logo']
         title = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[2]/div[1]/main/div[1]/h1/span/text()').extract()
         is_specialization = True if len(response.xpath("//*[contains(@id, 'courses')]")) else False
         if is_specialization:
@@ -94,6 +97,7 @@ class CourseraSpider(scrapy.Spider):
             # 'platform', 'issuer', 'title', 'about', 'purpose',
             # 'tutors', 'level', 'duration', 'language', 'stars',
             # 'logo', 'banner', 'link'
+            banner = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]//@style').re_first(r'url\(([^\)]+)')
             issuer = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[2]/div[3]/span/text()').extract()
             about = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/p/text()').extract()
             table = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/div[5]/table/tbody/tr/td/span/text()').extract()
@@ -121,6 +125,8 @@ class CourseraSpider(scrapy.Spider):
                                     'duration': str(duration),
                                     'language': str(language),
                                     'stars': str(stars),
+                                    'logo': str(course_logo),
+                                    'banner': str(banner),
                                     'link': str(response.url)})
 
 #ldks;
