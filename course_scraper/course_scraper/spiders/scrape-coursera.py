@@ -11,22 +11,25 @@ class CourseraSpider(scrapy.Spider):
 
     def parse(self, response):
         sel = scrapy.Selector(response)
-        academy_csv = open("academy.csv", "a+")
+        academy_csv = open('academy.csv', "a+")
         fieldnames = ['platform', 'title', 'description', 'logo', 'banner']
         academy_writer = csv.DictWriter(academy_csv, fieldnames=fieldnames)
-        course_csv = open("course.csv", "a+")
+        course_csv = open('course.csv', "a+")
         fieldnames =  [
                       'platform', 'issuer', 'title', 'about', 'purpose',
                       'tutors', 'level', 'duration', 'language', 'stars',
-                      'logo', 'link'
+                      'skills', 'logo', 'link'
                       ]
         course_writer = csv.DictWriter(course_csv, fieldnames=fieldnames)
-        specialization_csv = open("specialization.csv", "a+")
-        fieldnames =  ['platform', 'issuer', 'title', 'about', 'courses']
+        specialization_csv = open('specialization.csv', "a+")
+        fieldnames =  [
+                       'platform', 'issuer', 'title', 'about', 'courses',
+                       'skills', 'tutors'
+                      ]
         specialization_writer = csv.DictWriter(
                                                course_csv,
                                                fieldnames=fieldnames)
-        tutors_csv = open("tutors.csv", "a+")
+        tutors_csv = open('tutors.csv', "a+")
         fieldnames = ['title', 'description', 'logo', 'banner']
         tutors_writer = csv.DictWriter(tutors_csv, fieldnames=fieldnames)
 
@@ -81,7 +84,6 @@ class CourseraSpider(scrapy.Spider):
             request_course.meta['course_logo'] = course_logo[idx]
             yield request_course
 
-
     def parseCourseDetails(self, response):
         course_writer = response.meta['course_writer']
         specialization_writer = response.meta['specialization_writer']
@@ -89,12 +91,28 @@ class CourseraSpider(scrapy.Spider):
         title = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/h1/text()').extract()
         is_specialization = True if len(response.xpath("//*[contains(@id, 'courses')]")) else False
         if is_specialization:
-            print("SPECIALIZATION")
-            # 'platform', 'issuer', 'title', 'about', 'courses'
+            # 'platform', 'issuer', 'title', 'about', 'courses', 'skills', 'tutors'
+            issuer = title = about = courses = skills = tutors = links = ""
+            issuer = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[2]/div[1]/img/@title').extract()
             about = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/text()').extract()
-
+            courses_names = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[1]/div[2]/div/div[2]/a/h3/text()').extract()
+            links = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[1]/div[2]/div/div[2]/a/@href').extract()
+            skills = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[2]/div[1]/div[4]/div[1]/span/span/span/text()').extract()
+            tutors = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[1]/div[2]/div/div[1]/div[1]/h3/a/text()').extract()
+            links_list = []
+            for link in links:
+                abs_path = response.urljoin(link)
+                links_list.append(abs_path)
+            courses = dict(zip(courses_names, links_list))
+            specialization_writer.writerow({'platform': 'Coursera',
+                                            'issuer': str(issuer),
+                                            'title': str(title),
+                                            'about': str(about),
+                                            'courses': courses,
+                                            'skills': skills,
+                                            'tutors': tutors})
         else:
-            issuer = about = table = level = duration = language = stars = ""
+            issuer = about = table = level = duration = language = stars = skills = ""
             issuer = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[2]/img/@title').extract()
             about = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/text()').extract()
             path_parameters = '//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[3]/div[2]/div[1]/'
@@ -102,7 +120,8 @@ class CourseraSpider(scrapy.Spider):
             duration = self.return_val(response.xpath(path_parameters + 'div[4]/div[2]/h4/text()').extract())
             language = self.return_val(response.xpath(path_parameters + 'div[5]/div[2]/h4/text()').extract())
             stars = self.return_val(response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/span/text()').extract())
-
+            skills = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[3]/div[1]/div[3]/div[1]/span/span/span/text()').extract()
+            tutors = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[1]/div[2]/div/div[1]/div[1]/h3/a/text()').extract()
             course_writer.writerow({'platform': 'Coursera',
                                     'issuer': str(issuer),
                                     'title': str(title),
@@ -111,5 +130,6 @@ class CourseraSpider(scrapy.Spider):
                                     'duration': str(duration),
                                     'language': str(language),
                                     'stars': str(stars),
+                                    'skills': skills,
                                     'logo': str(course_logo),
                                     'link': str(response.url)})
