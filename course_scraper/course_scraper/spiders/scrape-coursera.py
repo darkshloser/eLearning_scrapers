@@ -27,7 +27,7 @@ class CourseraSpider(scrapy.Spider):
                        'skills', 'tutors'
                       ]
         specialization_writer = csv.DictWriter(
-                                               course_csv,
+                                               specialization_csv,
                                                fieldnames=fieldnames)
         tutors_csv = open('tutors.csv', "a+")
         fieldnames = ['title', 'description', 'logo', 'banner']
@@ -85,16 +85,19 @@ class CourseraSpider(scrapy.Spider):
             yield request_course
 
     def parseCourseDetails(self, response):
+        issuer = about = table = level = duration = stars = skills = ""
+        title = courses = tutors = links = language = ""
         course_writer = response.meta['course_writer']
         specialization_writer = response.meta['specialization_writer']
         course_logo = response.meta['course_logo']
-        title = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/h1/text()').extract()
+        title = self.return_val(response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/h1/text()').extract())
         is_specialization = True if len(response.xpath("//*[contains(@id, 'courses')]")) else False
         if is_specialization:
-            # 'platform', 'issuer', 'title', 'about', 'courses', 'skills', 'tutors'
-            issuer = title = about = courses = skills = tutors = links = ""
-            issuer = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[2]/div[1]/img/@title').extract()
-            about = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/text()').extract()
+            issuer = self.return_val(response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[2]/div[1]/img/@title').extract())
+            # many issuers
+            if issuer == '':
+                issuer = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[2]/div/span/text()').extract()
+            about = self.return_val(response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/text()').extract())
             courses_names = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[1]/div[2]/div/div[2]/a/h3/text()').extract()
             links = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[1]/div[2]/div/div[2]/a/@href').extract()
             skills = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[2]/div[1]/div[4]/div[1]/span/span/span/text()').extract()
@@ -112,13 +115,25 @@ class CourseraSpider(scrapy.Spider):
                                             'skills': skills,
                                             'tutors': tutors})
         else:
-            issuer = about = table = level = duration = language = stars = skills = ""
-            issuer = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[2]/img/@title').extract()
-            about = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/text()').extract()
+            # 'platform', 'issuer', 'title', 'about', 'purpose',
+            # 'tutors', 'level', 'duration', 'language', 'stars',
+            # 'skills', 'logo', 'link'
+            issuer = self.return_val(response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[2]/img/@title').extract())
+            if issuer == '':
+                issuer = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div/span/text()').extract()
+            about = self.return_val(response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[3]/div[1]/div[1]/div[1]/div[1]/div[1]/text()').extract())
             path_parameters = '//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[3]/div[2]/div[1]/'
-            level = self.return_val(response.xpath(path_parameters + 'div[3]/div[2]/h4/text()').extract())
-            duration = self.return_val(response.xpath(path_parameters + 'div[4]/div[2]/h4/text()').extract())
-            language = self.return_val(response.xpath(path_parameters + 'div[5]/div[2]/h4/text()').extract())
+            course_properties = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[3]/div[2]/div[1]/div/div[1]/svg/title').extract()
+            level_index = [a for a, b in enumerate(course_properties) if "100%" in b ]
+            duration_index = [c for c, d in enumerate(course_properties) if "Hours to complete" in d ]
+            language_index = [e for e, f in enumerate(course_properties) if "Available languages" in f ]
+            print("")
+            if len(level_index):
+                level = self.return_val(response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[3]/div[2]/div[1]/div['+str(level_index[0])+']/div[2]/h4/text()').extract())
+            if len(duration_index):
+                duration = self.return_val(response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[3]/div[2]/div[1]/div['+str(duration_index[0])+']/div[2]/h4/text()').extract())
+            if len(language_index):
+                language = self.return_val(response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[3]/div[2]/div[1]/div['+str(language_index[0])+']/div[2]/h4/text()').extract())
             stars = self.return_val(response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[4]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/span/text()').extract())
             skills = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[3]/div[1]/div[3]/div[1]/span/span/span/text()').extract()
             tutors = response.xpath('//div[@id="rendered-content"]/div[1]/div[1]/div[1]/div[1]/div[5]/div[1]/div[1]/div[2]/div/div[1]/div[1]/h3/a/text()').extract()
